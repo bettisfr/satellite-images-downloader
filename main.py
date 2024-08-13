@@ -8,10 +8,10 @@ from PIL import Image, ImageChops
 
 ####### Parameters
 # Resolution in meters [minimum 0.6]
-scale = 0.6
+scale = 2
 
 # Radius in meters of a circle that defines the region of interest
-buffer_radius = 5000
+buffer_radius = 2000
 
 # Latitude of the bottom-left corner of the area
 latitude_bottom_left = 37.910715173463
@@ -28,10 +28,13 @@ area_height = 8000
 
 def crop_black_borders(image_path):
     """Crops black borders from the image and saves the result."""
-    image = Image.open(image_path)
-    # Automatically crop black borders
-    bg = Image.new(image.mode, image.size, image.getpixel((0, 0)))
+    image = Image.open(image_path).convert("RGB")  # Ensure image is in RGB mode
+    bg = Image.new(image.mode, image.size, (0, 0, 0))  # Create a black background image
     diff = ImageChops.difference(image, bg)
+
+    # Enhance the difference image to handle dark variations
+    diff = ImageChops.add(diff, diff, 2.0, -100)
+
     bbox = diff.getbbox()
     if bbox:
         image = image.crop(bbox)
