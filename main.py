@@ -11,7 +11,7 @@ from PIL import Image, ImageChops
 scale = 0.6
 
 # Radius in meters of a circle that defines the region of interest
-buffer_radius = 500
+buffer_radius = 5000
 
 # Latitude of the bottom-left corner of the area
 latitude_bottom_left = 37.910715173463
@@ -66,11 +66,16 @@ def download_image(latitude, longitude, pair):
     region = point_us.buffer(buffer_radius).bounds().getInfo()['coordinates']
 
     # Get the download URL
-    url = image.getDownloadURL({
-        'scale': scale,  # NAIP images are typically 1m resolution
-        'region': region,
-        'format': 'GeoTIFF'
-    })
+    try:
+        url = image.getDownloadURL({
+            'scale': scale,  # NAIP images are typically 1m resolution
+            'region': region,
+            'format': 'GeoTIFF'
+        })
+    except ee.ee_exception.EEException as e:
+        print(e)
+        print(f"Try to *either* increase 'scale' (now {scale}) or decrease 'buffer_radius' (now {buffer_radius})")
+        exit(-1)
 
     # Download the image
     response = requests.get(url)
