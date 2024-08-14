@@ -18,10 +18,10 @@ from PIL import Image, ImageChops
 
 ####### Parameters
 # Resolution in meters [minimum 0.6]
-scale = 0.6
+scale = 3
 
 # Radius in meters of a circle that defines the region of interest
-buffer_radius = 800
+buffer_radius = 2000
 
 # Latitude of the bottom-left corner of the area
 latitude_bottom_left = 37.910715173463
