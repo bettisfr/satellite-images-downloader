@@ -6,6 +6,16 @@ from geopy.distance import geodesic
 from geopy.point import Point
 from PIL import Image, ImageChops
 
+# Comments
+# Do the following combinations
+#
+# buffer_radius 2000, scale 3
+# buffer_radius 3000, scale 4
+# buffer_radius 4000, scale 3
+#
+# buffer_radius 800, scale 0.6
+
+
 ####### Parameters
 # Resolution in meters [minimum 0.6]
 scale = 0.6
@@ -193,6 +203,6 @@ def create_random_uav_images():
 
 
 if __name__ == "__main__":
-    # download_satellite_images()
+    download_satellite_images()
 
-    create_random_uav_images()
+    # create_random_uav_images()
