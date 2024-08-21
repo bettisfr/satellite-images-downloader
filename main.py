@@ -8,23 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image, ImageChops
 
-# Comments
-# Do the following combinations
-#
-# buffer_radius 2000, scale 3
-# buffer_radius 3000, scale 4
-# buffer_radius 4000, scale 3
-#
-# buffer_radius 800, scale 0.6
-
-
 ####### Parameters
-# Resolution in meters [minimum 0.6]
-scale = 0.6
-
-# Radius in meters of a circle that defines the region of interest
-buffer_radius = 800
-
 # Latitude of the bottom-left corner of the area
 latitude_bottom_left = 37.910715173463
 
@@ -56,7 +40,7 @@ def crop_black_borders(image_path):
         print(f"No need to crop: {image_path}")
 
 
-def download_image(latitude, longitude, pair):
+def download_image(latitude, longitude, scale, buffer_radius, pair):
     x, y = pair
 
     # NAIP imagery is available only for the United States
@@ -83,7 +67,7 @@ def download_image(latitude, longitude, pair):
     # Get the download URL
     try:
         url = image.getDownloadURL({
-            'scale': scale,  # NAIP images are typically 1m resolution
+            'scale': scale,
             'region': region,
             'format': 'GeoTIFF'
         })
@@ -110,7 +94,7 @@ def download_image(latitude, longitude, pair):
     crop_black_borders(output_path)
 
 
-def download_satellite_images():
+def download_satellite_images(scale, buffer_radius):
     # Authentication and initialization
     ee.Authenticate()
     ee.Initialize(project='ee-francescobettisorbelli')
@@ -139,41 +123,10 @@ def download_satellite_images():
             print(f'Evaluating {x}, {y} located at {new_latitude}, {new_longitude}')
 
             # Download the image for the calculated location
-            download_image(new_latitude, new_longitude, (x, y))
+            download_image(new_latitude, new_longitude, scale, buffer_radius, (x, y))
 
 
-def manipulate_image(image_path, output_path, crop_size=500):
-    with Image.open(image_path) as img:
-        # List of allowed rotation angles
-        angles = [0, 90, 180, 270]
-
-        # Randomly select one of the allowed angles
-        angle = random.choice(angles)
-        rotated_img = img.rotate(angle, expand=True)
-
-        # Image dimensions after rotation
-        width, height = rotated_img.size
-
-        # Determine the cropping box
-        if width > crop_size and height > crop_size:
-            left = random.randint(0, width - crop_size)
-            top = random.randint(0, height - crop_size)
-        else:
-            # Center crop if the image is smaller than crop_size x crop_size
-            left = max((width - crop_size) // 2, 0)
-            top = max((height - crop_size) // 2, 0)
-
-        right = left + crop_size
-        bottom = top + crop_size
-
-        # Crop the image
-        cropped_img = rotated_img.crop((left, top, right, bottom))
-
-        # Save the manipulated image
-        cropped_img.save(output_path)
-
-
-def manipulate_image_improved(image_path, output_path, crop_size=500):
+def manipulate_image_improved(image_path, output_path, crop_size):
     with Image.open(image_path) as img:
         width, height = img.size
         print(width, height)
@@ -205,7 +158,7 @@ def manipulate_image_improved(image_path, output_path, crop_size=500):
         print(f"Saved cropped image to {output_path}")
 
 
-def create_random_uav_images():
+def create_random_uav_images(scale, buffer_radius, crop_size):
     out_folder = f'out/size{buffer_radius}_res{scale}'
     out_uav_folder = f'out_uav/size{buffer_radius}_res{scale}'
 
@@ -233,12 +186,18 @@ def create_random_uav_images():
             output_path = os.path.join(out_uav_folder, file)
 
             # Call the image manipulation function
-            manipulate_image_improved(file_path, output_path, 500)
-
-
+            manipulate_image_improved(file_path, output_path, crop_size)
 
 
 if __name__ == "__main__":
-    # download_satellite_images()
+    # parameters: scale, buffer_radius
+    # These will be the "satellite images"
+    download_satellite_images(3, 2000)
+    download_satellite_images(4, 3000)
+    download_satellite_images(3, 4000)
 
-    create_random_uav_images()
+    # These will be the "UAV images"
+    download_satellite_images(0.6, 800)
+    # From these, randomly extract some portions...
+    # parameters: scale, buffer_radius, crop_size
+    create_random_uav_images(0.6, 800, 500)
