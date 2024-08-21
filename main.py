@@ -4,6 +4,8 @@ import requests
 import random
 from geopy.distance import geodesic
 from geopy.point import Point
+import matplotlib.pyplot as plt
+import numpy as np
 from PIL import Image, ImageChops
 
 # Comments
@@ -18,10 +20,10 @@ from PIL import Image, ImageChops
 
 ####### Parameters
 # Resolution in meters [minimum 0.6]
-scale = 3
+scale = 0.6
 
 # Radius in meters of a circle that defines the region of interest
-buffer_radius = 2000
+buffer_radius = 800
 
 # Latitude of the bottom-left corner of the area
 latitude_bottom_left = 37.910715173463
@@ -171,6 +173,38 @@ def manipulate_image(image_path, output_path, crop_size=500):
         cropped_img.save(output_path)
 
 
+def manipulate_image_improved(image_path, output_path, crop_size=500):
+    with Image.open(image_path) as img:
+        width, height = img.size
+        print(width, height)
+
+        # Start from the center of the image
+        center_x = width // 2
+        center_y = height // 2
+
+        # Randomize a rotation angle between 0 and 359 degrees
+        rotation_angle = random.randint(0, 359)
+        print(f"Rotation Angle: {rotation_angle}°")
+
+        # Rotate the entire image around its center
+        rotated_img = img.rotate(rotation_angle, resample=Image.BICUBIC, center=(center_x, center_y))
+
+        # Calculate the top-left corner of the crop box centered on the rotated image
+        crop_box = (
+            center_x - crop_size // 2,
+            center_y - crop_size // 2,
+            center_x + crop_size // 2,
+            center_y + crop_size // 2
+        )
+
+        # Crop the square from the rotated image
+        cropped_img = rotated_img.crop(crop_box)
+
+        # Save the cropped image
+        cropped_img.save(output_path)
+        print(f"Saved cropped image to {output_path}")
+
+
 def create_random_uav_images():
     out_folder = f'out/size{buffer_radius}_res{scale}'
     out_uav_folder = f'out_uav/size{buffer_radius}_res{scale}'
@@ -199,10 +233,12 @@ def create_random_uav_images():
             output_path = os.path.join(out_uav_folder, file)
 
             # Call the image manipulation function
-            manipulate_image(file_path, output_path, 1000)
+            manipulate_image_improved(file_path, output_path, 500)
+
+
 
 
 if __name__ == "__main__":
-    download_satellite_images()
+    # download_satellite_images()
 
-    # create_random_uav_images()
+    create_random_uav_images()
