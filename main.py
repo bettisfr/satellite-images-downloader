@@ -1,3 +1,5 @@
+import math
+
 import ee
 import os
 import requests
@@ -8,24 +10,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image, ImageChops
 
-####### Parameters
-# Latitude of the bottom-left corner of the area
-latitude_bottom_left = 37.910715173463
-
-# Longitude of the bottom-left corner of the area
-longitude_bottom_left = -91.77332884614303
-
-# Length of the area in meters
-area_length = 20000
-
-# Height of the area in meters
-area_height = 20000
-
 
 def crop_black_borders(image_path):
-    """Crops black borders from the image and saves the result."""
-    image = Image.open(image_path).convert("RGB")  # Ensure image is in RGB mode
-    bg = Image.new(image.mode, image.size, (0, 0, 0))  # Create a black background image
+    image = Image.open(image_path).convert("RGB")
+    bg = Image.new(image.mode, image.size, (0, 0, 0))
     diff = ImageChops.difference(image, bg)
 
     # Enhance the difference image to handle dark variations
@@ -35,20 +23,26 @@ def crop_black_borders(image_path):
     if bbox:
         image = image.crop(bbox)
         image.save(image_path)
-        print(f"Cropped and saved: {image_path}")
+        print(f"Cropped")
     else:
-        print(f"No need to crop: {image_path}")
+        print(f"No need to crop")
 
 
-def download_image(latitude, longitude, scale, buffer_radius, pair):
+def get_image(center_point, dest_point, pair, buffer_radius, scale, rotation_angle):
+    dest_latitude, dest_longitude = dest_point.latitude, dest_point.longitude
+    center_latitude, center_longitude = center_point.latitude, center_point.longitude
     x, y = pair
 
+    # Authentication and initialization
+    ee.Authenticate()
+    ee.Initialize(project='ee-francescobettisorbelli')
+
     # NAIP imagery is available only for the United States
-    point_us = ee.Geometry.Point(longitude, latitude)
+    point_US = ee.Geometry.Point(dest_longitude, dest_latitude)
 
     # Select the NAIP image collection
     collection = ee.ImageCollection('USDA/NAIP/DOQQ') \
-        .filterBounds(point_us) \
+        .filterBounds(point_US) \
         .filterDate('2020-01-01', '2023-12-31') \
         .first()
 
@@ -62,7 +56,8 @@ def download_image(latitude, longitude, scale, buffer_radius, pair):
     # Visualize the image
     image = collection.visualize(**vis_params)
 
-    region = point_us.buffer(buffer_radius).bounds().getInfo()['coordinates']
+    # Defines a region within a circle of radius buffer_radius centered at point_US
+    region = point_US.buffer(buffer_radius).bounds().getInfo()['coordinates']
 
     # Get the download URL
     try:
@@ -74,130 +69,104 @@ def download_image(latitude, longitude, scale, buffer_radius, pair):
     except ee.ee_exception.EEException as e:
         print(e)
         print(f"Try to *either* increase 'scale' (now {scale}) or decrease 'buffer_radius' (now {buffer_radius})")
-        exit(-1)
+        return 1
 
     # Download the image
     response = requests.get(url)
 
     # Save the image to a file
-    out_folder = f'out/size{buffer_radius}_res{scale}'
+    out_folder = f'dataset/{x}_{y}__{center_latitude}_{center_longitude}'
     if not os.path.exists(out_folder):
         os.makedirs(out_folder)
 
-    output_path = f'{out_folder}/naip_{x}_{y}__{latitude}_{longitude}.tif'
+    output_path = f'{out_folder}/naip_br{buffer_radius}_s{scale}_r{rotation_angle}.tif'
     with open(output_path, 'wb') as file:
         file.write(response.content)
 
-    print(f'Image downloaded and saved as {output_path}')
+    print(f'Image downloaded={output_path}')
 
-    # Crop black borders
     crop_black_borders(output_path)
 
+    rotate_image(output_path, rotation_angle)
 
-def download_satellite_images(scale, buffer_radius):
-    # Authentication and initialization
-    ee.Authenticate()
-    ee.Initialize(project='ee-francescobettisorbelli')
+    return 0
 
-    num_rows = int(area_height / buffer_radius)
-    num_columns = int(area_length / buffer_radius)
 
+def download_satellite_images(p0, cell_side, num_cells_x, num_cells_y, iterations):
     # Create a starting point as a geopy Point object
-    start_point = Point(latitude_bottom_left, longitude_bottom_left)
+    start_point = Point(p0[0], p0[1])
 
-    print(f"Grid formed by {num_rows} rows and {num_columns} columns")
+    print(f"Grid formed by {num_cells_x} x {num_cells_y} cells")
 
-    for x in range(num_rows):
-        for y in range(num_columns):
+    for x in range(num_cells_x):
+        for y in range(num_cells_y):
             # Calculate distance in meters from the starting point
-            distance_east = y * 2 * buffer_radius
-            distance_north = x * 2 * buffer_radius
+            distance_east = y * cell_side
+            distance_north = x * cell_side
 
             # Calculate new point using geodesic function
-            new_point = geodesic(meters=distance_east).destination(start_point, 90)  # East direction
-            new_point = geodesic(meters=distance_north).destination(new_point, 0)  # North direction
+            center_point = geodesic(meters=distance_east).destination(start_point, 90)  # East direction
+            center_point = geodesic(meters=distance_north).destination(center_point, 0)  # North direction
 
-            # Extract latitude and longitude
-            new_latitude, new_longitude = new_point.latitude, new_point.longitude
+            # dist = geodesic(start_point, center_point).km
 
-            print(f'Evaluating {x}, {y} located at {new_latitude}, {new_longitude}')
+            print(f"Evaluating ({x}, {y}) located at ({center_point.latitude}, {center_point.longitude})")
 
-            # Download the image for the calculated location
-            download_image(new_latitude, new_longitude, scale, buffer_radius, (x, y))
+            buffer_radius = int(cell_side / 2)
+            scales = [0.6, 1, 2, 3, 4, 5]
+
+            i = 0
+            while i < iterations:
+                delta_x = random.randint(-buffer_radius, buffer_radius)
+                delta_y = random.randint(-buffer_radius, buffer_radius)
+
+                dest_point = geodesic(meters=delta_x).destination(start_point, 90)
+                dest_point = geodesic(meters=delta_y).destination(dest_point, 0)
+                dist = math.sqrt(delta_x**2 + delta_y**2)
+                new_buffer_radius = int(buffer_radius - dist)
+
+                rotation_angle = random.randint(0, 359)
+
+                scale = random.choice(scales)
+                if new_buffer_radius < 300 or (new_buffer_radius < 500 and scale >= 3):
+                    continue
+
+                print(f"  Generating image {i+1}/{iterations}")
+                status = get_image(center_point, dest_point, (x, y), new_buffer_radius, scale, rotation_angle)
+                if status == 1:
+                    continue
+
+                i = i+1
 
 
-def manipulate_image_improved(image_path, output_path, crop_size):
+def rotate_image(image_path, rotation_angle):
     with Image.open(image_path) as img:
         width, height = img.size
-        print(width, height)
 
         # Start from the center of the image
         center_x = width // 2
         center_y = height // 2
 
-        # Randomize a rotation angle between 0 and 359 degrees
-        rotation_angle = random.randint(0, 359)
-        print(f"Rotation Angle: {rotation_angle}°")
-
         # Rotate the entire image around its center
         rotated_img = img.rotate(rotation_angle, resample=Image.BICUBIC, center=(center_x, center_y))
 
-        # Calculate the top-left corner of the crop box centered on the rotated image
-        crop_box = (
-            center_x - crop_size // 2,
-            center_y - crop_size // 2,
-            center_x + crop_size // 2,
-            center_y + crop_size // 2
-        )
-
-        # Crop the square from the rotated image
-        cropped_img = rotated_img.crop(crop_box)
-
         # Save the cropped image
-        cropped_img.save(output_path)
-        print(f"Saved cropped image to {output_path}")
-
-
-def create_random_uav_images(scale, buffer_radius, crop_size):
-    out_folder = f'out/size{buffer_radius}_res{scale}'
-    out_uav_folder = f'out_uav/size{buffer_radius}_res{scale}'
-
-    os.makedirs(out_uav_folder, exist_ok=True)
-
-    if scale != 0.6:
-        print("For this task, please use scale=0.6")
-        exit(-1)
-
-    for root, _, files in os.walk(out_folder):
-        for file in files:
-            parts = file.split('_')
-            x = parts[1]
-            y = parts[2]
-            latitude = parts[4]
-            longitude = parts[5].split('.tif')[0]
-
-            # Print the extracted values
-            print(f"x: {x}, y: {y}, latitude: {latitude}, longitude: {longitude}")
-
-            # Full path to the input image
-            file_path = os.path.join(root, file)
-
-            # Define the output path
-            output_path = os.path.join(out_uav_folder, file)
-
-            # Call the image manipulation function
-            manipulate_image_improved(file_path, output_path, crop_size)
+        rotated_img.save(image_path)
+        print(f"Rotated")
 
 
 if __name__ == "__main__":
-    # parameters: scale, buffer_radius
-    # These will be the "satellite images"
-    download_satellite_images(3, 2000)
-    download_satellite_images(4, 3000)
-    download_satellite_images(3, 4000)
+    ####### Parameters
+    # Latitude and longitude of the bottom-left cell center of the area, respectively
+    p_0 = (37.910715173463, -91.77332884614303)
 
-    # These will be the "UAV images"
-    download_satellite_images(0.6, 800)
-    # From these, randomly extract some portions...
-    # parameters: scale, buffer_radius, crop_size
-    create_random_uav_images(0.6, 800, 500)
+    # Number of cells along x-axis and y-axis, respectively
+    num_cells_x, num_cells_y = 1, 1
+
+    # Cell side (it is a square) in meters
+    cell_side = 2000
+
+    # How many random images to take for each cell
+    iterations = 100
+
+    download_satellite_images(p_0, cell_side, num_cells_x, num_cells_y, iterations)
