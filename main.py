@@ -120,7 +120,7 @@ def download_satellite_images(p0, cell_side, num_cells_x, num_cells_y, iteration
                 delta_x = random.randint(-buffer_radius, buffer_radius)
                 delta_y = random.randint(-buffer_radius, buffer_radius)
 
-                dest_point = geodesic(meters=delta_x).destination(start_point, 90)
+                dest_point = geodesic(meters=delta_x).destination(center_point, 90)
                 dest_point = geodesic(meters=delta_y).destination(dest_point, 0)
                 dist = math.sqrt(delta_x**2 + delta_y**2)
                 new_buffer_radius = int(buffer_radius - dist)
@@ -161,7 +161,7 @@ if __name__ == "__main__":
     p_0 = (37.910715173463, -91.77332884614303)
 
     # Number of cells along x-axis and y-axis, respectively
-    num_cells_x, num_cells_y = 1, 1
+    num_cells_x, num_cells_y = 10, 10
 
     # Cell side (it is a square) in meters
     cell_side = 2000
