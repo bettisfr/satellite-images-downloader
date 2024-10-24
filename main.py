@@ -28,8 +28,7 @@ def crop_black_borders(image_path):
         print(f"No need to crop")
 
 
-def get_image(center_point, dest_point, pair, buffer_radius, scale, rotation_angle):
-    dest_latitude, dest_longitude = dest_point.latitude, dest_point.longitude
+def get_image(center_point, pair, buffer_radius, scale):
     center_latitude, center_longitude = center_point.latitude, center_point.longitude
     x, y = pair
 
@@ -38,7 +37,7 @@ def get_image(center_point, dest_point, pair, buffer_radius, scale, rotation_ang
     ee.Initialize(project='ee-francescobettisorbelli')
 
     # NAIP imagery is available only for the United States
-    point_US = ee.Geometry.Point(dest_longitude, dest_latitude)
+    point_US = ee.Geometry.Point(center_longitude, center_latitude)
 
     # Select the NAIP image collection
     collection = ee.ImageCollection('USDA/NAIP/DOQQ') \
@@ -79,20 +78,20 @@ def get_image(center_point, dest_point, pair, buffer_radius, scale, rotation_ang
     if not os.path.exists(out_folder):
         os.makedirs(out_folder)
 
-    output_path = f'{out_folder}/naip_br{buffer_radius}_s{scale}_r{rotation_angle}.tif'
+    output_path = f'{out_folder}/naip_br{buffer_radius}_s{scale}.tif'
     with open(output_path, 'wb') as file:
         file.write(response.content)
 
     print(f'Image downloaded={output_path}')
 
-    crop_black_borders(output_path)
-
-    rotate_image(output_path, rotation_angle)
+    # crop_black_borders(output_path)
+    #
+    # rotate_image(output_path, rotation_angle)
 
     return 0
 
 
-def download_satellite_images(p0, cell_side, num_cells_x, num_cells_y, iterations):
+def download_satellite_images(p0, cell_side, num_cells_x, num_cells_y):
     # Create a starting point as a geopy Point object
     start_point = Point(p0[0], p0[1])
 
@@ -115,28 +114,10 @@ def download_satellite_images(p0, cell_side, num_cells_x, num_cells_y, iteration
             buffer_radius = int(cell_side / 2)
             scales = [0.6, 1, 2, 3, 4, 5]
 
-            i = 0
-            while i < iterations:
-                delta_x = random.randint(-buffer_radius, buffer_radius)
-                delta_y = random.randint(-buffer_radius, buffer_radius)
-
-                dest_point = geodesic(meters=delta_x).destination(start_point, 90)
-                dest_point = geodesic(meters=delta_y).destination(dest_point, 0)
-                dist = math.sqrt(delta_x**2 + delta_y**2)
-                new_buffer_radius = int(buffer_radius - dist)
-
-                rotation_angle = random.randint(0, 359)
-
-                scale = random.choice(scales)
-                if new_buffer_radius < 300 or (new_buffer_radius < 500 and scale >= 3):
-                    continue
-
-                print(f"  Generating image {i+1}/{iterations}")
-                status = get_image(center_point, dest_point, (x, y), new_buffer_radius, scale, rotation_angle)
+            for scale in scales:
+                status = get_image(center_point, (x, y), buffer_radius, scale)
                 if status == 1:
                     continue
-
-                i = i+1
 
 
 def rotate_image(image_path, rotation_angle):
@@ -161,12 +142,9 @@ if __name__ == "__main__":
     p_0 = (37.910715173463, -91.77332884614303)
 
     # Number of cells along x-axis and y-axis, respectively
-    num_cells_x, num_cells_y = 1, 1
+    num_cells_x, num_cells_y = 10, 10
 
     # Cell side (it is a square) in meters
-    cell_side = 2000
+    cell_side = 1000
 
-    # How many random images to take for each cell
-    iterations = 100
-
-    download_satellite_images(p_0, cell_side, num_cells_x, num_cells_y, iterations)
+    download_satellite_images(p_0, cell_side, num_cells_x, num_cells_y)
