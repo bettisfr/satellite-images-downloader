@@ -85,8 +85,6 @@ def get_image(center_point, pair, buffer_radius, scale):
     print(f'Image downloaded={output_path}')
 
     # crop_black_borders(output_path)
-    #
-    # rotate_image(output_path, rotation_angle)
 
     return 0
 
@@ -120,29 +118,13 @@ def download_satellite_images(p0, cell_side, num_cells_x, num_cells_y):
                     continue
 
 
-def rotate_image(image_path, rotation_angle):
-    with Image.open(image_path) as img:
-        width, height = img.size
-
-        # Start from the center of the image
-        center_x = width // 2
-        center_y = height // 2
-
-        # Rotate the entire image around its center
-        rotated_img = img.rotate(rotation_angle, resample=Image.BICUBIC, center=(center_x, center_y))
-
-        # Save the cropped image
-        rotated_img.save(image_path)
-        print(f"Rotated")
-
-
 if __name__ == "__main__":
     ####### Parameters
     # Latitude and longitude of the bottom-left cell center of the area, respectively
     p_0 = (37.910715173463, -91.77332884614303)
 
     # Number of cells along x-axis and y-axis, respectively
-    num_cells_x, num_cells_y = 10, 10
+    num_cells_x, num_cells_y = 2, 2
 
     # Cell side (it is a square) in meters
     cell_side = 1000
